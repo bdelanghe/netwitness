@@ -1,0 +1,27 @@
+name: ci
+# `nix flake check` on GitHub-hosted runners. Linux always (cheap minutes while the repo is private);
+# macOS (the module-eval check, which needs launchd) only once the repo is public, where hosted minutes are free.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Skip macOS while private
+        id: gate
+        run: |
+          if [ "${{ matrix.os }}" = macos-latest ] && [ "${{ github.event.repository.private }}" = true ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "private repo: macOS check deferred"; fi
+      - if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.gate.outputs.skip != 'true'
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - if: steps.gate.outputs.skip != 'true'
+        run: nix flake check -L

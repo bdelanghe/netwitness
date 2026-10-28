@@ -1,0 +1,10 @@
+{
+  "_comment": "Hand-curated registrable domain -> organisation, for domains the automatic evidence cannot name (registrant redacted, DV certificate, shared hosting). Evidence 'known' ranks below cert/rdap and above the fallback. Keep it short; add a line only when the resolver has actually fallen back on the domain. Set programs.netwitness.entities.knownFile to your own.",
+  "apple.com": "Apple Inc.",
+  "cloudflare.com": "Cloudflare, Inc.",
+  "github.com": "GitHub, Inc.",
+  "githubusercontent.com": "GitHub, Inc.",
+  "google.com": "Google LLC",
+  "gstatic.com": "Google LLC",
+  "nixos.org": "NixOS Foundation"
+}
