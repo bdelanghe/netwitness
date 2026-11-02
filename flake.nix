@@ -60,9 +60,19 @@
             assert ent.EnvironmentVariables.ZEEK_STATE == "/Users/t/.local/state/zeek" && ent.StartInterval == 900;
             assert lib.any (p: (p.name or "") == "domains") on.home.packages;
             pkgs.runCommand "netwitness-module-eval" { } ''
-              grep -q -- '-mtime +3 -delete' ${builtins.head cap.ProgramArguments}
               grep -q 'exec /opt/homebrew/bin/zeek -i "$iface" -C' ${builtins.head cap.ProgramArguments}
               ${pkgs.bash}/bin/bash -n ${builtins.head cap.ProgramArguments}
+              # The prune, run on files named as zeek 9 names them: only a rotated log past retention goes.
+              prune=$(grep -o '/nix/store/[^ ]*-zeek-prune' ${builtins.head cap.ProgramArguments} | head -1)
+              grep -q "Log::default_rotation_postprocessor_cmd=$prune" ${builtins.head cap.ProgramArguments}
+              d=$(mktemp -d)
+              touch -t 202001010000 "$d/conn.2020-01-01-00-00-00.log" "$d/conn.log" "$d/agent.log"
+              touch "$d/conn.2026-01-01-00-00-00.log"
+              ZEEK_PRUNE_DIR="$d" "$prune" conn.2026-01-01-00-00-00.log conn 26-01-01_00.00.00 26-01-01_01.00.00 0 ascii
+              [ ! -e "$d/conn.2020-01-01-00-00-00.log" ]
+              [ -e "$d/conn.2026-01-01-00-00-00.log" ]
+              [ -e "$d/conn.log" ]
+              [ -e "$d/agent.log" ]
               touch $out
             '';
         });
