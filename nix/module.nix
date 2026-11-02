@@ -48,15 +48,21 @@ let
   # capture.zeekBin = "${pkgs.zeek}/bin/zeek".
   zeekBin = cfg.capture.zeekBin;
 
+  # Rotated logs older than the retention window. Zeek rotates by renaming
+  # into this same directory (conn.YYYY-MM-DD-HH-MM-SS.log), so one find covers
+  # every stream; live logs (conn.log) and agent.log never match. Runs at each
+  # (re)start and, as zeek's rotation postprocessor, after every rotation:
+  # zeek runs for weeks, so start alone is not enough. Zeek passes the rotated
+  # file's details as arguments; they are ignored.
+  prune = pkgs.writeShellScript "zeek-prune" ''
+    ${pkgs.findutils}/bin/find "''${ZEEK_PRUNE_DIR:-${zeekState}}" -maxdepth 1 -name '*.????-??-??-??-??-??.log' -mtime +${toString retentionDays} -delete
+  '';
+
   start = pkgs.writeShellScript "zeek-capture" ''
     set -eu
     mkdir -p "${zeekState}"
     cd "${zeekState}"
-    # Rotated logs older than the retention window. Zeek rotates by
-    # renaming into this same directory (conn-YYYY-MM-DD-HH-MM-SS.log), so
-    # one find covers every stream. Runs at each (re)start, which with
-    # hourly rotation is often enough.
-    /usr/bin/find . -maxdepth 1 -name '*-????-??-??-??-??-??.log' -mtime +${toString retentionDays} -delete
+    ${prune}
     # The default-route interface, decided at start. A VPN or a Wi-Fi/wired
     # change moves the default route; KeepAlive brings zeek back on the new
     # one the next time it exits, and until then a capture on the old
@@ -65,7 +71,8 @@ let
     [ -x "${zeekBin}" ] || { echo "zeek-capture: ${zeekBin} missing — brew's zeek not installed yet" >&2; exit 1; }
     exec ${zeekBin} -i "$iface" -C \
       LogAscii::use_json=T \
-      Log::default_rotation_interval=1hr
+      Log::default_rotation_interval=1hr \
+      Log::default_rotation_postprocessor_cmd=${prune}
   '';
 
   # Stage two of capture -> resolve -> join: turn the domains in zeek's logs
