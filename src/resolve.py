@@ -355,20 +355,32 @@ def _same_org(domain: str, org: str) -> bool:
     return any(t in flat for t in tokens) or (len(first) >= 4 and stem.startswith(first))
 
 
+def _or_absent(f, arg: str, absent):
+    """Evidence from a source that answers in a shape this code does not expect
+    is absent, like evidence from one that does not answer. Raising instead
+    would abort the run before the cursor moves, and every later run would
+    retry the same domain and abort again."""
+    try:
+        return f(arg)
+    except Exception as e:
+        print(f"web-entities: {f.__name__}({arg}): {e!r}", file=sys.stderr)
+        return absent
+
+
 def resolve(domain: str, hosts: dict[str, str], known: dict, ip_cache: dict) -> dict:
     """One registrable domain -> entity record, from the evidence in order."""
     host, ip = next(iter(hosts.items()), (domain, None))
     ev: dict = {}
-    ev["cert_o"] = cert_org(host)
-    ev["jsonld_org"], ev["jsonld_same_as"] = jsonld_org(host)
+    ev["cert_o"] = _or_absent(cert_org, host, None)
+    ev["jsonld_org"], ev["jsonld_same_as"] = _or_absent(jsonld_org, host, (None, []))
     time.sleep(RDAP_DELAY)
-    ev.update(rdap_domain(domain))
+    ev.update(_or_absent(rdap_domain, domain, {"registrar": None, "registrant": None}))
     if ip:
         if ip not in ip_cache:
             time.sleep(RDAP_DELAY)
-            ip_cache[ip] = rdap_ip(ip)
+            ip_cache[ip] = _or_absent(rdap_ip, ip, None)
         ev["host_org"] = ip_cache[ip]
-    ev["dmarc_rua"] = dmarc_rua_domains(domain)
+    ev["dmarc_rua"] = _or_absent(dmarc_rua_domains, domain, [])
 
     if ev.get("cert_o"):
         org, conf, by = ev["cert_o"], "high", "cert"
