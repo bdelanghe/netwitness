@@ -161,6 +161,7 @@ def cert_org(host: str) -> str | None:
 
 JSONLD_BYTES = 512 * 1024
 ROBOTS_TIMEOUT = 10
+ROBOTS_BYTES = 512 * 1024  # a robots.txt longer than this is not read in part: it reads as refusal
 JSONLD_SCRIPT = re.compile(
     rb'<script[^>]+type\s*=\s*["\']application/ld\+json["\'][^>]*>(.*?)</script>',
     re.IGNORECASE | re.DOTALL,
@@ -172,7 +173,8 @@ def _robots_allows(host: str) -> bool:
     are a TLS handshake and API calls to RDAP and DNS — none of which is a
     request for content. This one is, so it asks first. A missing or
     unparseable robots.txt reads as permission, which is the convention; a
-    fetch failure reads as refusal, because not knowing is not consent.
+    fetch failure reads as refusal, because not knowing is not consent; so
+    does a robots.txt over ROBOTS_BYTES, which cannot be read whole.
     Fetched here rather than by RobotFileParser.read(), which has no timeout:
     a server that accepts and never answers would hold the agent forever."""
     import urllib.error
@@ -181,11 +183,14 @@ def _robots_allows(host: str) -> bool:
     req = urllib.request.Request(f"https://{host}/robots.txt", headers={"User-Agent": UA})
     try:
         with urllib.request.urlopen(req, timeout=ROBOTS_TIMEOUT) as r:
-            body = r.read(JSONLD_BYTES)
+            body = r.read(ROBOTS_BYTES + 1)
     except urllib.error.HTTPError as e:
         # RobotFileParser's reading: 401/403 forbid everything, any other 4xx is no robots.txt.
         return e.code not in (401, 403) and 400 <= e.code < 500
     except Exception:
+        return False
+    if len(body) > ROBOTS_BYTES:
+        # Too big to read whole: a Disallow past the cut would be missed, so the part read cannot be taken as permission.
         return False
     rp = urllib.robotparser.RobotFileParser()
     try:
