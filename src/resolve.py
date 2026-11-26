@@ -441,6 +441,15 @@ def collect(since: float, until: float):
     return hosts, buckets
 
 
+def _replace(p: Path, text: str) -> None:
+    """Write beside, then rename over: a run killed mid-write (SIGTERM at logout,
+    a full disk) leaves the previous file whole. A truncated entities.json or
+    cursor would fail to parse on every later run."""
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, p)
+
+
 def main() -> int:
     STATE.mkdir(parents=True, exist_ok=True)
     ents_p, out_p, cur_p = STATE / "entities.json", STATE / "web-entities.jsonl", STATE / "cursor"
@@ -472,8 +481,8 @@ def main() -> int:
                 e = entities.get(r, {})
                 f.write(json.dumps({"ts": start, "interval": INTERVAL, "domain": r, "org": e.get("org", r),
                                     "confidence": e.get("confidence", "none"), "by": e.get("by", "fallback"), **c}) + "\n")
-    ents_p.write_text(json.dumps(entities, indent=1, sort_keys=True))
-    cur_p.write_text(str(until))
+    _replace(ents_p, json.dumps(entities, indent=1, sort_keys=True))
+    _replace(cur_p, str(until))
     print(f"web-entities: {len(hosts)} domains in ({since:.0f}, {until}], {fresh} resolved, "
           f"{sum(len(b) for b in buckets.values())} rows written", file=sys.stderr)
     return 0
