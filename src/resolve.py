@@ -102,18 +102,24 @@ def _redacted(name: str | None) -> bool:
 
 
 def _rfc2253_parts(dn: str) -> list[str]:
-    r"""Split a DN on unescaped commas; 'O=Datadog\, Inc.' stays one part."""
-    parts, cur, esc = [], "", False
-    for ch in dn:
-        if esc:
-            cur += ch; esc = False
-        elif ch == "\\":
-            esc = True
-        elif ch == ",":
-            parts.append(cur); cur = ""
+    r"""Split a DN on unescaped commas and undo the escapes: 'O=Datadog\, Inc.'
+    stays one part, and each byte of a non-ASCII character, which RFC 2253
+    output escapes as hex, is decoded: 'Soci\C3\A9t\C3\A9' is 'Société'."""
+    parts, cur, i = [], bytearray(), 0
+    while i < len(dn):
+        ch = dn[i]
+        if ch == "\\" and re.fullmatch(r"[0-9A-Fa-f]{2}", dn[i + 1:i + 3]):
+            cur.append(int(dn[i + 1:i + 3], 16)); i += 3
+            continue
+        if ch == "\\":
+            cur += dn[i + 1:i + 2].encode(); i += 2
+            continue
+        if ch == ",":
+            parts.append(cur.decode("utf-8", "replace")); cur = bytearray()
         else:
-            cur += ch
-    parts.append(cur)
+            cur += ch.encode()
+        i += 1
+    parts.append(cur.decode("utf-8", "replace"))
     return [p.strip() for p in parts]
 
 
