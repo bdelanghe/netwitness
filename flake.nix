@@ -40,6 +40,14 @@
             [ -s state/cursor ]
             touch $out
           '';
+
+          # resolve.py's unit tests (tests/test_*.py), offline: every network call is stubbed or local.
+          resolver-unit = pkgs.runCommand "netwitness-resolver-unit"
+            { nativeBuildInputs = [ (pkgs.python3.withPackages (ps: [ ps.tldextract ])) ]; } ''
+            export PYTHONPATH=${./src} PYTHONDONTWRITEBYTECODE=1 TLDEXTRACT_CACHE=$PWD/tld HOME=$PWD
+            python3 -m unittest discover -s ${./tests} -v
+            touch $out
+          '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # Under Home Manager: nothing by default; each part emits exactly its own agent / packages.

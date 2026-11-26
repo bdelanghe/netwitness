@@ -465,6 +465,10 @@ def main() -> int:
     for r in hosts:
         entities[r]["last_seen"] = now
         entities[r].setdefault("first_seen", now)
+        # A knownFile line applies from the next run, not at the 30-day refresh:
+        # it is added because the resolver fell back, and it outranks only that.
+        if r in known and entities[r].get("by") in ("fallback", "known") and entities[r].get("org") != known[r]:
+            entities[r].update(org=known[r], confidence="medium", by="known")
 
     with open(out_p, "a") as f:
         for start in sorted(buckets):
