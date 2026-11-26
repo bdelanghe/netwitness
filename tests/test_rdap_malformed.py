@@ -20,6 +20,13 @@ class MalformedRdap(unittest.TestCase):
         [row] = rows(state)
         self.assertEqual((row["domain"], row["by"], row["tls"]), ("example.org", "fallback", 1))
 
+    def test_non_string_ip_owner_name_is_absent(self):
+        # An IP RDAP answer whose "name" is not a string must not reach _same_org.
+        state = offline_state(self)
+        with mock.patch.object(resolve, "_get_json", lambda url: {"name": ["x"]}):
+            self.assertEqual(resolve.main(), 0)
+        self.assertTrue((state / "cursor").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -322,7 +322,8 @@ def rdap_ip(ip: str) -> str | None:
             fn = _vcard_fn(e)
             if fn:
                 return fn
-    return r.get("name") or None
+    name = r.get("name")
+    return name if isinstance(name, str) and name else None
 
 
 def dmarc_rua_domains(domain: str) -> list[str]:
