@@ -460,7 +460,8 @@ def main() -> int:
         cur = entities.get(r)
         if cur and now - cur.get("resolved_at", 0) < REFRESH_DAYS * 86400:
             continue
-        entities[r] = resolve(r, {h: ip for h, ip in hs.items() if ip} or hs, known, ip_cache)
+        # Over the old record, so a refresh keeps first_seen.
+        entities[r] = {**(cur or {}), **resolve(r, {h: ip for h, ip in hs.items() if ip} or hs, known, ip_cache)}
         fresh += 1
     for r in hosts:
         entities[r]["last_seen"] = now
